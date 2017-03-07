@@ -5,6 +5,11 @@ import com.jbirdvegas.groovy.utils.internal.Applier
 
 @ClassMagic
 class ListClassUtils implements Applier {
+    @Override
+    void applyAll() {
+        addInputOutputStreams()
+    }
+
     static def addInputOutputStreams() {
         ArrayList.metaClass.getInputStream = { ->
             if (delegate instanceof List<Byte> || delegate instanceof ArrayList<Byte>) {
@@ -17,10 +22,5 @@ class ListClassUtils implements Applier {
                 return new ByteArrayOutputStream().write(delegate as byte[])
             } else return null
         }
-    }
-
-    @Override
-    void applyAll() {
-        addInputOutputStreams()
     }
 }

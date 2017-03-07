@@ -5,6 +5,11 @@ import com.jbirdvegas.groovy.utils.internal.Applier
 
 @ClassMagic
 class FileClassUtils implements Applier {
+    @Override
+    void applyAll() {
+        addMkParents()
+    }
+
     static def addMkParents() {
         File.metaClass.mkparents = { ->
             if (!(delegate as File).parentFile.exists() && !(delegate as File).parentFile.mkdirs()) {
@@ -17,10 +22,5 @@ class FileClassUtils implements Applier {
         File.metaClass.contains = { String lookup ->
             (delegate as File).text.contains(lookup)
         }
-    }
-
-    @Override
-    void applyAll() {
-        addMkParents()
     }
 }

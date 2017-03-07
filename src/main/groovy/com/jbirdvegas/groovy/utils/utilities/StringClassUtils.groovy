@@ -4,7 +4,6 @@ import com.jbirdvegas.groovy.utils.annotations.ClassMagic
 import com.jbirdvegas.groovy.utils.internal.Applier
 import com.jbirdvegas.groovy.utils.internal.Utils
 import org.apache.commons.lang3.StringEscapeUtils
-import org.apache.commons.lang3.StringUtils
 
 @ClassMagic
 class StringClassUtils implements Applier {
@@ -65,8 +64,12 @@ class StringClassUtils implements Applier {
     }
 
     static def addStringManipulationUtils() {
-        String.metaClass.getBase64 = { ->
+        String.metaClass.toBase64 = { ->
             (delegate as String).bytes.encodeBase64().toString()
+        }
+
+        String.metaClass.fromBase64 = { ->
+            new String(Base64.getDecoder().decode(delegate as String))
         }
 
         String.metaClass.caseFormat = { from, to ->

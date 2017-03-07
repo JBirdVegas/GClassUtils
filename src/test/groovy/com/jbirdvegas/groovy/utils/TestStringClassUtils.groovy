@@ -1,5 +1,6 @@
 package com.jbirdvegas.groovy.utils
 
+import com.jbirdvegas.groovy.utils.utilities.IntegerClassUtils
 import com.jbirdvegas.groovy.utils.utilities.StringClassUtils
 import groovy.json.JsonSlurper
 import org.apache.commons.lang3.StringEscapeUtils
@@ -15,10 +16,23 @@ class TestStringClassUtils {
 
     @Test
     void testBase64() {
-        Assert.assertTrue("Base64 encoding did not produce expected result", "hello world in Base64".base64 == 'aGVsbG8gd29ybGQgaW4gQmFzZTY0')
+        Assert.assertTrue("Base64 encoding did not produce expected result", "hello world in Base64".toBase64() == 'aGVsbG8gd29ybGQgaW4gQmFzZTY0')
         def tempFile = File.createTempFile("pre", ".post")
         "test".writeToFile(tempFile)
         Assert.assertTrue(tempFile.text == "test")
+    }
+
+    @Test
+    void testDecodeBase64() {
+        def base = "YWRtaW46YWRtaW4=".fromBase64()
+        Assert.assertTrue(base == 'admin:admin')
+    }
+
+    @Test
+    void testBothBase64Methods() {
+        new IntegerClassUtils().applyAll()
+        def chars = 32.randomChars()
+        Assert.assertTrue(chars == chars.toBase64().fromBase64())
     }
 
     @Test

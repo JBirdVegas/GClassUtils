@@ -10,6 +10,11 @@ class ObjectClassUtils implements Applier {
     private static final Gson DENSE = new Gson()
     private static final Gson PRETTY = new GsonBuilder().setPrettyPrinting().create()
 
+    @Override
+    void applyAll() {
+        addJsonUtils()
+    }
+
     static addJsonUtils() {
         Object.metaClass.json = { ->
             DENSE.toJson(delegate)
@@ -18,10 +23,5 @@ class ObjectClassUtils implements Applier {
         Object.metaClass.jsonPretty = { ->
             PRETTY.toJson(delegate)
         }
-    }
-
-    @Override
-    void applyAll() {
-        addJsonUtils()
     }
 }
