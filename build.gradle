@@ -18,7 +18,7 @@ import com.squareup.javapoet.TypeSpec
 import javax.lang.model.element.Modifier
 
 group 'com.jbirdvegas.groovy.utils'
-version '1.4'
+version '1.0'
 
 apply plugin: 'groovy'
 apply plugin: "jacoco"
