@@ -18,7 +18,7 @@ import com.squareup.javapoet.TypeSpec
 import javax.lang.model.element.Modifier
 
 group 'com.jbirdvegas.groovy.utils'
-version '1.1'
+version '1.3'
 
 apply plugin: 'groovy'
 apply plugin: "jacoco"
@@ -125,7 +125,9 @@ if (generatedSourcesDir.exists()) {
 }
 
 dependencies {
-    compile project(':annotations')
+    compileOnly(project(':annotations')) {
+        transitive = false
+    }
     compile 'org.codehaus.groovy:groovy-all:2.3.11'
     compile group: 'com.google.code.gson', name: 'gson', version: '2.8.0'
     compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.5'
@@ -166,7 +168,7 @@ void createJavaClass(Map<String, String> map) throws IOException {
     ClassName arrayListClassName = ClassName.get("java.util", "ArrayList")
     MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder("getMagic")
             .returns(listOfClasses)
-            .addModifiers(Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
+            .addModifiers(Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
             .addJavadoc('$S\n', 'DO NOT MODIFY; this method is written automatically by the compiler')
             .addStatement("\$T result = new \$T<>(${map.size()})", listOfClasses, arrayListClassName)
     map.each {
