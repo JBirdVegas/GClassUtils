@@ -11,6 +11,12 @@ class FileClassUtils implements Applier {
                 throw new IOException("Failed to make parent directory at ${(delegate as File).parentFile.absolutePath}")
             }
         }
+
+
+
+        File.metaClass.contains = { String lookup ->
+            (delegate as File).text.contains(lookup)
+        }
     }
 
     @Override

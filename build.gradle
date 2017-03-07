@@ -4,6 +4,7 @@ buildscript {
     }
     dependencies {
         classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.7.3'
+        classpath 'com.squareup:javapoet:1.6.1'
     }
 }
 apply plugin: 'com.jfrog.bintray'
@@ -17,14 +18,26 @@ import com.squareup.javapoet.TypeSpec
 import javax.lang.model.element.Modifier
 
 group 'com.jbirdvegas.groovy.utils'
-version '1.0'
+version '1.1'
 
 apply plugin: 'groovy'
 apply plugin: "jacoco"
 apply plugin: 'maven-publish'
+apply plugin: 'idea'
 
 repositories {
-    mavenCentral()
+    jcenter()
+}
+
+idea {
+    module {
+        downloadJavadoc true
+        downloadSources true
+        sourceDirs += new File("$project.projectDir/src/main", 'generated-sources')
+        generatedSourceDirs += new File("$project.projectDir/src/main", 'generated-sources')
+        name = project.name
+        jdkName = JavaVersion.VERSION_1_8
+    }
 }
 
 jacoco {
@@ -44,6 +57,10 @@ task sourceJar(type: Jar) {
     from sourceSets.main.allJava
 }
 
+artifacts {
+    archives sourceJar
+}
+
 // Create the pom configuration:
 def pomConfig = {
     licenses {
@@ -55,29 +72,9 @@ def pomConfig = {
     }
     developers {
         developer {
-            id "developer-id"
-            name "developer-name"
-            email "dev@d.com"
-        }
-    }
-}
-
-// Create the publication with the pom configuration:
-publishing {
-    publications {
-        MyPublication(MavenPublication) {
-            from components.java
-            artifact sourceJar
-            groupId project.group
-            artifactId project.name
-            version project.version
-            pom.withXml {
-                def root = asNode()
-                root.appendNode('description', 'Adds methods to handle common usecases in Groovy')
-                root.appendNode('name', project.name)
-                root.appendNode('url', 'https://site_for_lib.tld')
-                root.children().last() + pomConfig
-            }
+            id "JBirdVegas"
+            name "Jon Stanford"
+            email "jbirdvegas@gmail.com"
         }
     }
 }
@@ -90,25 +87,52 @@ publishing {
         mavenJava(MavenPublication) {
             from components.java
 
-            artifact sourceJar {
-                classifier "sources"
+            pom.withXml {
+                def root = asNode()
+                root.appendNode('description', 'Adds methods to handle common usecases in Groovy')
+                root.appendNode('name', project.name)
+                root.appendNode('url', 'https://github.com/JBirdVegas/GClassUtils')
+                root.children().last() + pomConfig
             }
         }
     }
+}
+
+bintray {
+    user = System.getenv('BINTRAY_USER_NAME')
+    key = System.getenv('BINTRAY_API_KEY')
+    publications = ['mavenJava']
+    publish = true
+    override = true
+    pkg {
+        repo = "JBirdVegas"
+        name = "${group}.${project.name}"
+        userOrg = 'jbirdvegas'
+        publicDownloadNumbers = true
+        labels = ['groovy', 'utils']
+        licenses = ['Apache-2.0']
+        vcsUrl = 'git@github.com:JBirdVegas/GClassUtils.git'
+        githubRepo = 'JBirdVegas/GClassUtils'
+    }
+}
+
+tasks.findByName('publish').finalizedBy tasks.findByName('bintrayUpload')
+
+// clean up any previous generated sources if they exist
+def generatedSourcesDir = new File("${rootDir}/src/main/generated-sources")
+if (generatedSourcesDir.exists()) {
+    generatedSourcesDir.deleteDir()
 }
 
 dependencies {
     compile project(':annotations')
     compile 'org.codehaus.groovy:groovy-all:2.3.11'
     compile group: 'com.google.code.gson', name: 'gson', version: '2.8.0'
+    compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.5'
     testCompile group: 'junit', name: 'junit', version: '4.11'
 }
 
-def compileTask = project.tasks.getByName("compileGroovy")
-def process = tasks.create('process', GroovyCompile)
-def sourceSet = project.sourceSets
-def setOfFiles = sourceSets.main.groovy.files
-def magicFiles = (setOfFiles as Set<File>).findAll {
+def magicFiles = (sourceSets.main.groovy.files as Set<File>).findAll {
     it.text.contains("@ClassMagic")
 }
 
@@ -123,12 +147,20 @@ magicFiles.each {
 
 createJavaClass(map)
 
-
 void createJavaClass(Map<String, String> map) throws IOException {
-    TypeSpec.Builder typeBuilder = TypeSpec.classBuilder("ClassMagic")
+    TypeSpec.Builder typeBuilder = TypeSpec.classBuilder("GClassUtils")
             .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
             .addJavadoc('$S\n', 'DO NOT MODIFY; this class is written automatically by the compiler')
             .addMethod(createPrivateConstructor())
+
+    def addMagicMethod = MethodSpec.methodBuilder('addMagic')
+            .addModifiers(Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
+            .returns(void.class)
+            .beginControlFlow("for (\$L applier : getMagic())", ClassName.get('com.jbirdvegas.groovy.utils.internal', 'Applier'))
+            .addStatement('applier.applyAll()')
+            .endControlFlow()
+            .build()
+    typeBuilder.addMethod(addMagicMethod)
 
     ParameterizedTypeName listOfClasses = getArrayListOfClasses()
     ClassName arrayListClassName = ClassName.get("java.util", "ArrayList")
@@ -137,17 +169,15 @@ void createJavaClass(Map<String, String> map) throws IOException {
             .addModifiers(Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
             .addJavadoc('$S\n', 'DO NOT MODIFY; this method is written automatically by the compiler')
             .addStatement("\$T result = new \$T<>(${map.size()})", listOfClasses, arrayListClassName)
-
     map.each {
-        methodBuilder.addStatement('result.add($L.class)', getTypeName(it.value as String, it.key as String))
+        methodBuilder.addStatement('result.add(new $L())', getTypeName(it.value as String, it.key as String))
     }
-
     methodBuilder.addStatement("return result")
     typeBuilder.addMethod(methodBuilder.build())
 
     String packageName = "com.jbirdvegas.groovy.utils"
     // create a java file writer
-    JavaFile.Builder builder = JavaFile.builder("${packageName}.$project.name", typeBuilder.build())
+    JavaFile.Builder builder = JavaFile.builder("${packageName}", typeBuilder.build())
     // don't import java.lang.* it's redundant
     builder.skipJavaLangImports(true)
     // use four spaces for indent instead of default two spaces
@@ -165,47 +195,25 @@ void createJavaClass(Map<String, String> map) throws IOException {
 }
 
 private static ParameterizedTypeName getArrayListOfClasses() {
-    return ParameterizedTypeName.get(ClassName.get("java.util", "List"), ClassName.get(Class.class))
+    return ParameterizedTypeName.get(ClassName.get("java.util", "List"), ClassName.get('com.jbirdvegas.groovy.utils.internal', 'Applier'))
 }
 
 /**
- * Removes a paramaterization from an annotated class's name (as seen by the annotation processors
+ * Removes a parameterization from an annotated class's name (as seen by the annotation processors
  *
- * @param clazzName name of class, possibly with a \<\T> paramaterization
+ * @param clazzName name of class, possibly with a \<\T> parameterization
  * @return clazzName that would conform to #getSimpleName()
  */
-private ClassName getTypeName(String packageName, String clazzName) {
+private static ClassName getTypeName(String packageName, String clazzName) {
     return ClassName.get(packageName, clazzName.contains("<") && clazzName.contains(">")
             ? clazzName.substring(0, clazzName.indexOf("<"))
             : clazzName)
 }
 
-
-File getBuildConfigFile(String group) {
-    return new File(String.format("%s/src/main/generated-sources/%s/%s/MagicUtils.java", project.projectDir.absolutePath, group.replaceAll("\\.", "/"), project.name))
+private File getBuildConfigFile(String group) {
+    return new File(String.format("%s/src/main/generated-sources", project.projectDir.absolutePath))
 }
 
-private MethodSpec createPrivateConstructor() {
+private static MethodSpec createPrivateConstructor() {
     return MethodSpec.constructorBuilder().addModifiers(Modifier.PRIVATE).build()
-}
-
-private String getStringFormatter(Class clazz) {
-    //noinspection Duplicates
-    //noinspection GroovyFallthrough
-    switch (clazz.getSimpleName().toLowerCase()) {
-        case "string":
-            // causes the formatter used to wrap the value in quotes correctly
-        case "date":
-            // date objects are serialized to a string
-            return '$S'
-        case "long":
-            return '$LL'
-        case "double":
-            return '$LD'
-        case "float":
-            return '$LF'
-        default:
-            // for the reset use literal
-            return '$L'
-    }
 }
