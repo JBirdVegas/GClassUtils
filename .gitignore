@@ -2,3 +2,7 @@
 .idea/
 **/build/
 **/generated-sources/
+gradle.properties
+gclassutils.key
+**/.DS_Store
+.DS_Store

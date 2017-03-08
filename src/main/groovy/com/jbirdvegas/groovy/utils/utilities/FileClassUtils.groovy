@@ -17,7 +17,9 @@ class FileClassUtils implements Applier {
             }
         }
 
-
+        File.metaClass.notContains = { String lookup ->
+            !(delegate as File).text.contains(lookup)
+        }
 
         File.metaClass.contains = { String lookup ->
             (delegate as File).text.contains(lookup)

@@ -3,11 +3,10 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.7.3'
-        classpath 'com.squareup:javapoet:1.6.1'
+        classpath 'com.squareup:javapoet:1.8.0'
+        classpath 'com.github.ben-manes:gradle-versions-plugin:0.14.0'
     }
 }
-apply plugin: 'com.jfrog.bintray'
 
 import com.squareup.javapoet.ClassName
 import com.squareup.javapoet.JavaFile
@@ -24,6 +23,8 @@ apply plugin: 'groovy'
 apply plugin: "jacoco"
 apply plugin: 'maven-publish'
 apply plugin: 'idea'
+apply plugin: 'signing'
+apply plugin: 'com.github.ben-manes.versions'
 
 repositories {
     jcenter()
@@ -45,20 +46,53 @@ jacoco {
 }
 
 test.finalizedBy jacocoTestReport
-test.testLogging {
-    events "passed", "skipped", "failed", "standardOut"
-    showExceptions true
-    exceptionFormat "full"
-    showCauses true
-    showStackTraces true
+test {
+    def count = 0
+    def allGood = true
+    afterTest { desc, result ->
+        println "Executed test $desc.className #$desc.name with result: $result.resultType"
+        if (result.resultType != 'SUCCESS') {
+            allGood = false
+        }
+        count++
+    }
+    doLast {
+        println "Executed $count tests ${allGood ? 'successfully' : ''}"
+    }
 }
 
-task sourceJar(type: Jar) {
-    from sourceSets.main.allJava
+configurations {
+    pom
+}
+
+ext {
+    pomFilePath = "$project.buildDir.absolutePath/generated-pom.xml"
+    pomFile = file(pomFilePath)
+}
+
+task sourceJar(type: Jar, dependsOn: 'classes') {
+    from sourceSets.main.allSource
+    classifier = 'sources'
+}
+
+task javadocJar(type: Jar, dependsOn: 'javadoc') {
+    from javadoc
+    classifier = 'javadoc'
 }
 
 artifacts {
-    archives sourceJar
+    archives jar, sourceJar, javadocJar
+    if (pomFile.exists()) {
+        pom pomFile
+    }
+}
+
+signing {
+    sign configurations.archives
+}
+
+task signJars(type: Sign, dependsOn: [jar, javadocJar, sourceJar]) {
+    sign configurations.archives
 }
 
 // Create the pom configuration:
@@ -82,73 +116,144 @@ def pomConfig = {
 publishing {
     repositories {
         mavenLocal()
+        if (project.version.endsWith('-SNAPSHOT')) {
+            maven {
+                credentials {
+                    username ossrhUsername
+                    password ossrhPassword
+                }
+                url 'https://oss.sonatype.org/content/repositories/snapshots/'
+            }
+        } else {
+            maven {
+                credentials {
+                    username ossrhUsername
+                    password ossrhPassword
+                }
+                url 'https://oss.sonatype.org/service/local/staging/deploy/maven2/'
+            }
+        }
     }
     publications {
         mavenJava(MavenPublication) {
             from components.java
-
+            artifact("$project.buildDir.absolutePath/libs/$project.name-${project.version}.jar.asc") {
+                extension 'jar.asc'
+            }
+            artifact(javadocJar) {
+                classifier "javadoc"
+            }
+            artifact("$project.buildDir.absolutePath/libs/$project.name-$project.version-javadoc.jar.asc") {
+                classifier "javadoc"
+                extension 'jar.asc'
+            }
+            artifact(sourceJar) {
+                classifier "sources"
+            }
+            artifact("$project.buildDir.absolutePath/libs/$project.name-$project.version-sources.jar.asc") {
+                classifier "sources"
+                extension 'jar.asc'
+            }
             pom.withXml {
-                def root = asNode()
-                root.appendNode('description', 'Adds methods to handle common usecases in Groovy')
-                root.appendNode('name', project.name)
-                root.appendNode('url', 'https://github.com/JBirdVegas/GClassUtils')
-                root.children().last() + pomConfig
+                addToNode(asNode(), pomConfig)
+            }
+            if (signing.required) {
+                // Sign the pom.xml.
+                pom.withXml {
+                    writeTo(project.ext.pomFile)
+                    def pomAscFile = signing.sign(project.ext.pomFile).signatureFiles[0]
+                    artifact(pomAscFile) {
+                        classifier = null
+                        extension = 'pom.asc'
+                    }
+                }
             }
         }
     }
 }
 
-bintray {
-    user = System.getenv('BINTRAY_USER_NAME')//'jbirdvegas'//'n00bware'//
-    key = System.getenv('BINTRAY_API_KEY')
-//    throw new Exception("user: $user, key: $key")
-    publications = ['mavenJava']
-    publish = true
-    override = true
-    pkg {
-        repo = "release"
-        name = "${group}.${project.name}"
-        userOrg = 'jbirdvegas'
-        publicDownloadNumbers = true
-        labels = ['groovy', 'utils']
-        licenses = ['Apache-2.0']
-        vcsUrl = 'git@github.com:JBirdVegas/GClassUtils.git'
-        githubRepo = 'JBirdVegas/GClassUtils'
-    }
+def addToNode(def root, def pomConfig) {
+    def scm = new Node(root, 'scm')
+    scm.appendNode('developerConnection', 'scm:git:https://github.com/JBirdVegas/GClassUtils.git')
+    scm.appendNode('url', 'https://github.com/JBirdVegas/GClassUtils.git')
+
+    root.appendNode('description', 'Adds methods to handle common usecases in Groovy')
+    root.appendNode('name', project.name)
+    root.appendNode('url', 'https://github.com/JBirdVegas/GClassUtils')
+    root.children().last() + pomConfig
 }
 
-tasks.findByName('publish').finalizedBy tasks.findByName('bintrayUpload')
-
-// clean up any previous generated sources if they exist
-def generatedSourcesDir = new File("${rootDir}/src/main/generated-sources")
-if (generatedSourcesDir.exists()) {
-    generatedSourcesDir.deleteDir()
+model {
+    tasks.generatePomFileForMavenJavaPublication {
+        destination = file("$buildDir/generated-pom.xml")
+    }
 }
 
 dependencies {
     compileOnly(project(':annotations')) {
         transitive = false
     }
-    compile 'org.codehaus.groovy:groovy-all:2.3.11'
+    compile 'org.codehaus.groovy:groovy-all:2.4.9'
     compile group: 'com.google.code.gson', name: 'gson', version: '2.8.0'
     compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.5'
-    testCompile group: 'junit', name: 'junit', version: '4.11'
+    testCompile group: 'junit', name: 'junit', version: '4.12'
 }
 
-def magicFiles = (sourceSets.main.groovy.files as Set<File>).findAll {
-    it.text.contains("@ClassMagic")
+clean {
+    doFirst {
+        cleanUpPrevious()
+    }
 }
 
-def map = [:] as HashMap<String, String>
-magicFiles.each {
-    def relative = ((it.absolutePath - project.projectDir.absolutePath) - '/src/main/groovy/') - '.groovy'
-    def lastSlash = relative.lastIndexOf('/')
-    def group = relative.substring(0, lastSlash).replaceAll('/', '.')
-    def name = relative.substring(lastSlash + 1)
-    map.put(name, group)
+tasks.create('generateAnnotatedClassList') {
+    inputs.dir("$project.projectDir.absolutePath/src/main/groovy").skipWhenEmpty(true)
+    def outputPath = getBuildConfigFile().absolutePath
+    outputs.dir(outputPath)
+    doLast {
+        createJavaClass(getAnnotatedClassesMap())
+    }
+}
+configurations {
+    codeGen
+}
+sourceSets {
+    main {
+        groovy.srcDir getBuildConfigFile()
+    }
 }
 
-createJavaClass(map)
+compileGroovy {
+    source += sourceSets.main.allSource
+    source += getBuildConfigFile()
+}
+
+tasks.findByName('compileJava').dependsOn generateAnnotatedClassList
+
+// TODO MOVE ALL THE BELOW TO IT'S OWN CLASS/FILE
+void cleanUpPrevious() {
+    // clean up any previous generated sources if they exist
+    def generatedSourcesDir = new File("${rootDir}/src/main/generated-sources")
+    if (generatedSourcesDir.exists()) {
+        generatedSourcesDir.deleteDir()
+    }
+
+}
+
+Map<String, String> getAnnotatedClassesMap() {
+    def magicFiles = (sourceSets.main.groovy.files as Set<File>).findAll {
+        it.text.contains("@ClassMagic")
+    }
+
+    def map = [:] as HashMap<String, String>
+    magicFiles.each {
+        def relative = ((it.absolutePath - project.projectDir.absolutePath) - '/src/main/groovy/') - '.groovy'
+        def lastSlash = relative.lastIndexOf('/')
+        def group = relative.substring(0, lastSlash).replaceAll('/', '.')
+        def name = relative.substring(lastSlash + 1)
+        map.put(name, group)
+    }
+    map
+}
 
 void createJavaClass(Map<String, String> map) throws IOException {
     TypeSpec.Builder typeBuilder = TypeSpec.classBuilder("GClassUtils")
@@ -188,7 +293,7 @@ void createJavaClass(Map<String, String> map) throws IOException {
     // create the file in memory
     JavaFile javaFile = builder.build()
 
-    File file = getBuildConfigFile(packageName)
+    File file = getBuildConfigFile()
     // ensure file structure
     if (!file.getParentFile().exists() && !file.getParentFile().mkdirs()) {
         throw new IOException("Failed to create directory structure for " + file.getAbsolutePath())
@@ -213,8 +318,8 @@ private static ClassName getTypeName(String packageName, String clazzName) {
             : clazzName)
 }
 
-private File getBuildConfigFile(String group) {
-    return new File(String.format("%s/src/main/generated-sources", project.projectDir.absolutePath))
+private File getBuildConfigFile() {
+    return project.file("$project.buildDir.absolutePath/generated-sources")
 }
 
 private static MethodSpec createPrivateConstructor() {
