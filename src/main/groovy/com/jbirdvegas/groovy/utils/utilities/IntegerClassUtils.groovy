@@ -48,12 +48,20 @@ class IntegerClassUtils implements Applier {
             ((delegate as Integer) / 2).toInteger()
         }
 
+        Integer.metaClass.third = { ->
+            ((delegate as Integer) / 3).toInteger()
+        }
+
         Integer.metaClass.fourth = { ->
             ((delegate as Integer) / 4).toInteger()
         }
 
         Integer.metaClass.double = { ->
             ((delegate as Integer) * 2).toInteger()
+        }
+
+        Integer.metaClass.triple = { ->
+            ((delegate as Integer) * 3).toInteger()
         }
 
         Integer.metaClass.quadruple = { ->

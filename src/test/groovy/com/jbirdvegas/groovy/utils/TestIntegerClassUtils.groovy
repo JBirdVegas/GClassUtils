@@ -67,6 +67,14 @@ class TestIntegerClassUtils {
     }
 
     @Test
+    void testThird() {
+        Assert.assertTrue(12.third() == 4)
+        Assert.assertTrue(33.third() == 11)
+        Assert.assertTrue(3.third() == 1)
+        Assert.assertTrue(3000.third() == 1000)
+    }
+
+    @Test
     void testFourth() {
         Assert.assertTrue(12.fourth() == 3)
         Assert.assertTrue(24.fourth() == 6)
@@ -80,6 +88,14 @@ class TestIntegerClassUtils {
         Assert.assertTrue(10.double() == 20)
         Assert.assertTrue(100.double() == 200)
         Assert.assertTrue(1.double() == 2)
+    }
+
+    @Test
+    void testTriple() {
+        Assert.assertTrue(12.triple() == 36)
+        Assert.assertTrue(10.triple() == 30)
+        Assert.assertTrue(100.triple() == 300)
+        Assert.assertTrue(1.triple() == 3)
     }
 
     @Test
