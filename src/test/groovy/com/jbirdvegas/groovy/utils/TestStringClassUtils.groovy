@@ -120,4 +120,11 @@ class TestStringClassUtils {
         def json = new JsonSlurper().parseText(response as String)
         Assert.assertTrue(json.data == '{"blah":"blah"}')
     }
+
+    @Test
+    void testTruncate() {
+        Assert.assertTrue('1234567890'.truncate(5) == '12345')
+        Assert.assertTrue('1234567890'.truncate(1) == '1')
+        Assert.assertTrue('1234567890'.truncate(100) == '1234567890')
+    }
 }

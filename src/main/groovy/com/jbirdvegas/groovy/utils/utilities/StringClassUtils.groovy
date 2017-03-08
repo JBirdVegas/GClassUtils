@@ -4,6 +4,7 @@ import com.jbirdvegas.groovy.utils.annotations.ClassMagic
 import com.jbirdvegas.groovy.utils.internal.Applier
 import com.jbirdvegas.groovy.utils.internal.Utils
 import org.apache.commons.lang3.StringEscapeUtils
+import org.apache.commons.lang3.StringUtils
 
 @ClassMagic
 class StringClassUtils implements Applier {
@@ -74,6 +75,10 @@ class StringClassUtils implements Applier {
 
         String.metaClass.caseFormat = { from, to ->
             from.to(to, delegate)
+        }
+
+        String.metaClass.truncate = { int max ->
+            StringUtils.truncate(delegate as String, max)
         }
     }
 
